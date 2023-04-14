@@ -456,10 +456,7 @@ func GetFileListAsync(args []string) chan Finfo {
 				log.Warn(err)
 				return
 			}
-			// 忽略隐藏目录
-			if strings.HasPrefix(finfo.Name(), ".") {
-				continue
-			}
+
 			if finfo.IsDir() {
 				files, err := ioutil.ReadDir(path)
 				if err != nil {
@@ -499,10 +496,7 @@ func GetFileList(args []string) (fileList []string, err error) {
 		if err != nil {
 			return nil, err
 		}
-		// 忽略隐藏目录
-		if strings.HasPrefix(finfo.Name(), ".") {
-			continue
-		}
+
 		if finfo.IsDir() {
 			files, err := ioutil.ReadDir(path)
 			if err != nil {
