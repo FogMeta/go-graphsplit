@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/filedrive-team/go-graphsplit"
 	"github.com/filedrive-team/go-graphsplit/dataset"
@@ -105,9 +106,14 @@ var chunkCmd = &cli.Command{
 			return xerrors.Errorf("Unexpected! Slice size has been set as 0")
 		}
 
-		targetPath := c.Args().First()
-		if _, err := os.Stat(targetPath); err != nil {
-			return errors.New("Unexpected! The target path does not exist")
+		targetsPath := c.Args().Slice()
+		if len(targetsPath) == 0 {
+			return xerrors.Errorf("Unexpected! Targets path has been set as empty")
+		}
+		for _, targetPath := range targetsPath {
+			if _, err := os.Stat(targetPath); err != nil {
+				return errors.New("Unexpected! The target path does not exist")
+			}
 		}
 		var cb graphsplit.GraphBuildCallback
 		if c.Bool("calc-commp") {
@@ -117,7 +123,10 @@ var chunkCmd = &cli.Command{
 		} else {
 			cb = graphsplit.ErrCallback()
 		}
-		return graphsplit.Chunk(ctx, int64(sliceSize), parentPath, targetPath, carDir, graphName, int(parallel), cb, c.Bool("car-padding"))
+		if len(targetsPath) > 1 {
+			return graphsplit.ChunkMulti(ctx, int64(sliceSize), parentPath, targetsPath, carDir, graphName, int(parallel), cb, c.Bool("car-padding"))
+		}
+		return graphsplit.Chunk(ctx, int64(sliceSize), parentPath, targetsPath[0], carDir, graphName, int(parallel), cb, c.Bool("car-padding"))
 	},
 }
 
@@ -211,4 +220,37 @@ var importDatasetCmd = &cli.Command{
 
 		return dataset.Import(ctx, targetPath, c.String("dsmongo"))
 	},
+}
+
+func camelMatch(queries []string, pattern string) []bool {
+	res := make([]bool, len(queries))
+	if pattern == "" {
+		return res
+	}
+	start := 0
+	var patterns []string
+	for i := 0; i < len(pattern); i++ {
+		char := pattern[i]
+		if char >= 'A' && char <= 'Z' {
+			patterns = append(patterns, pattern[start:i+1])
+			start = i + 1
+		}
+	}
+	for i, query := range queries {
+		for _, pt := range patterns {
+			query = strings.Replace(query, pt, "", 1)
+		}
+		res[i] = containUpperWord(query)
+	}
+	return res
+}
+
+func containUpperWord(s string) bool {
+	for i := 0; i < len(s); i++ {
+		char := s[i]
+		if char >= 'A' && char <= 'Z' {
+			return true
+		}
+	}
+	return false
 }

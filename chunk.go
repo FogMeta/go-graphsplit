@@ -3,6 +3,7 @@ package graphsplit
 import (
 	"context"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -127,6 +128,17 @@ func ErrCallback() GraphBuildCallback {
 }
 
 func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir, graphName string, parallel int, cb GraphBuildCallback, padding ...bool) error {
+	if parentPath == "" {
+		parentPath = targetPath
+		if finfo, err := os.Stat(targetPath); err == nil && !finfo.IsDir() {
+			index := strings.LastIndex(targetPath, "/")
+			parentPath = targetPath[:index]
+		}
+	}
+	return ChunkMulti(ctx, sliceSize, parentPath, []string{targetPath}, carDir, graphName, parallel, cb, padding...)
+}
+
+func ChunkMulti(ctx context.Context, sliceSize int64, parentPath string, targetsPath []string, carDir, graphName string, parallel int, cb GraphBuildCallback, padding ...bool) error {
 	var cumuSize int64 = 0
 	graphSliceCount := 0
 	graphFiles := make([]Finfo, 0)
@@ -137,10 +149,13 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 		return xerrors.Errorf("Unexpected! Parallel has to be greater than 0")
 	}
 	if parentPath == "" {
-		parentPath = targetPath
+		return errors.New("Unexpected! ParentPath not be empty")
+	}
+	if len(targetsPath) == 0 {
+		return errors.New("Unexpected! TargetsPath size has to be greater than 0")
 	}
 
-	args := []string{targetPath}
+	args := targetsPath
 	sliceTotal, err := GetGraphCount(args, sliceSize)
 	if err != nil {
 		return fmt.Errorf("GetGraphCount error :%w", err)
@@ -226,14 +241,7 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 	}
 	if cumuSize > 0 {
 		if len(padding) > 0 && padding[0] {
-			log.Info("generate random padding file size :", sliceSize-cumuSize)
-			// generate padding file
-			path := targetPath
-			if finfo, err := os.Stat(targetPath); err == nil && !finfo.IsDir() {
-				index := strings.LastIndex(path, "/")
-				path = path[:index]
-			}
-			if f, err := generateRandomPaddingFile(path, sliceSize-cumuSize); err != nil {
+			if f, err := generateRandomPaddingFile(parentPath, sliceSize-cumuSize); err != nil {
 				log.Error("generate random padding file failed :", err)
 			} else {
 				cumuSize = sliceSize
