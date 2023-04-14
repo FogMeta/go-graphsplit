@@ -139,7 +139,10 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 	}
 
 	args := []string{targetPath}
-	sliceTotal := GetGraphCount(args, sliceSize)
+	sliceTotal, err := GetGraphCount(args, sliceSize)
+	if err != nil {
+		return fmt.Errorf("GetGraphCount error :%w", err)
+	}
 	if sliceTotal == 0 {
 		log.Warn("Empty folder or file!")
 		return nil

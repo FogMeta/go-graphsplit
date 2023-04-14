@@ -184,8 +184,6 @@ func buildIpldGraph(ctx context.Context, fileList []Finfo, parentPath, carDir st
 			lock.Lock()
 			fileNodeMap[item.Path] = fn
 			lock.Unlock()
-			fmt.Println(item.Path)
-			log.Infof("file node: %s", fileNode)
 		}(i, item)
 	}
 	wg.Wait()
@@ -220,8 +218,7 @@ func buildIpldGraph(ctx context.Context, fileList []Finfo, parentPath, carDir st
 			dirNodeMap[rootKey].AddNodeLink(item.Name, fileNode)
 			continue
 		}
-		//log.Info(item.Path)
-		//log.Info(dirList)
+
 		i := len(dirList) - 1
 		for ; i >= 0; i-- {
 			// get dirNodeMap by index
@@ -231,8 +228,6 @@ func buildIpldGraph(ctx context.Context, fileList []Finfo, parentPath, carDir st
 			var parentKey string
 			dir := dirList[i]
 			dirKey := getDirKey(dirList, i)
-			log.Info(dirList)
-			log.Infof("dirKey: %s", dirKey)
 			dirNode, ok = dirNodeMap[dirKey]
 			if !ok {
 				dirNode = unixfs.EmptyDirNode()
@@ -248,7 +243,6 @@ func buildIpldGraph(ctx context.Context, fileList []Finfo, parentPath, carDir st
 			} else {
 				parentKey = getDirKey(dirList, i-1)
 			}
-			log.Infof("parentKey: %s", parentKey)
 			parentNode, ok = dirNodeMap[parentKey]
 			if !ok {
 				parentNode = unixfs.EmptyDirNode()
@@ -426,24 +420,23 @@ func GenGraphName(graphName string, sliceCount, sliceTotal int) string {
 	return fmt.Sprintf("%s-total-%d-part-%d.car", graphName, sliceTotal, sliceCount+1)
 }
 
-func GetGraphCount(args []string, sliceSize int64) int {
+func GetGraphCount(args []string, sliceSize int64) (count int, err error) {
 	list, err := GetFileList(args)
 	if err != nil {
-		panic(err)
+		return
 	}
 	var totalSize int64 = 0
 	for _, path := range list {
 		finfo, err := os.Stat(path)
 		if err != nil {
-			panic(err)
+			return 0, err
 		}
 		totalSize += finfo.Size()
 	}
 	if totalSize == 0 {
-		return 0
+		return
 	}
-	count := (totalSize / sliceSize) + 1
-	return int(count)
+	return int((totalSize / sliceSize) + 1), nil
 }
 
 func GetFileListAsync(args []string) chan Finfo {
