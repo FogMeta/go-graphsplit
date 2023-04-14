@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 
@@ -84,6 +85,11 @@ var chunkCmd = &cli.Command{
 			Value: false,
 			Usage: "add padding to carfile in order to convert it to piece file",
 		},
+		&cli.BoolFlag{
+			Name:  "car-padding",
+			Value: false,
+			Usage: "add padding to carfile in order to convert it's size to slice-size",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		ctx := context.Background()
@@ -100,6 +106,9 @@ var chunkCmd = &cli.Command{
 		}
 
 		targetPath := c.Args().First()
+		if _, err := os.Stat(targetPath); err != nil {
+			return errors.New("Unexpected! The target path does not exist")
+		}
 		var cb graphsplit.GraphBuildCallback
 		if c.Bool("calc-commp") {
 			cb = graphsplit.CommPCallback(carDir, c.Bool("rename"), c.Bool("add-padding"))
@@ -108,7 +117,7 @@ var chunkCmd = &cli.Command{
 		} else {
 			cb = graphsplit.ErrCallback()
 		}
-		return graphsplit.Chunk(ctx, int64(sliceSize), parentPath, targetPath, carDir, graphName, int(parallel), cb)
+		return graphsplit.Chunk(ctx, int64(sliceSize), parentPath, targetPath, carDir, graphName, int(parallel), cb, c.Bool("car-padding"))
 	},
 }
 
@@ -131,6 +140,11 @@ var restoreCmd = &cli.Command{
 			Value: 4,
 			Usage: "specify how many number of goroutines runs when generate file node",
 		},
+		&cli.BoolFlag{
+			Name:  "car-padding",
+			Value: false,
+			Usage: "remove padding file after restore from carfile",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		parallel := c.Int("parallel")
@@ -141,7 +155,7 @@ var restoreCmd = &cli.Command{
 		}
 
 		graphsplit.CarTo(carPath, outputDir, parallel)
-		graphsplit.Merge(outputDir, parallel)
+		graphsplit.Merge(outputDir, parallel, c.Bool("car-padding"))
 
 		fmt.Println("completed!")
 		return nil

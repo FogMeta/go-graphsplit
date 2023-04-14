@@ -168,7 +168,7 @@ func CarTo(carPath, outputDir string, parallel int) {
 	wg.Wait()
 }
 
-func Merge(dir string, parallel int) {
+func Merge(dir string, parallel int, padding ...bool) {
 	wg := sync.WaitGroup{}
 	limitCh := make(chan struct{}, parallel)
 	mergeCh := make(chan string)
@@ -221,12 +221,29 @@ func Merge(dir string, parallel int) {
 			}
 		}
 	}()
+
+	removePadding := len(padding) > 0 && padding[0]
 	err := filepath.Walk(dir, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if fi.IsDir() {
 			return nil
+		}
+		// remove padding file if need
+		// restore chunked file will generate padding file & it's file dir
+		// restore chunked file dir only generate padding file
+		if removePadding && fi.Name() == carPaddingFileName {
+			if path == dir+"/"+carPaddingFileName {
+				os.Remove(path)
+			} else {
+				index := strings.Index(path[len(dir)+1:], "/")
+				if index == -1 {
+					os.Remove(path)
+				} else {
+					os.RemoveAll(path[:len(dir)+index+1])
+				}
+			}
 		}
 		matched, err := filepath.Match("*.00000000", fi.Name())
 		if err != nil {

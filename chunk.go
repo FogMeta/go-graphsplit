@@ -5,8 +5,10 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	ipld "github.com/ipfs/go-ipld-format"
@@ -124,7 +126,7 @@ func ErrCallback() GraphBuildCallback {
 	return &errCallback{}
 }
 
-func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir, graphName string, parallel int, cb GraphBuildCallback) error {
+func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir, graphName string, parallel int, cb GraphBuildCallback, padding ...bool) error {
 	var cumuSize int64 = 0
 	graphSliceCount := 0
 	graphFiles := make([]Finfo, 0)
@@ -147,6 +149,7 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 		log.Warn("Empty folder or file!")
 		return nil
 	}
+
 	files := GetFileListAsync(args)
 	for item := range files {
 		fileSize := item.Info.Size()
@@ -160,7 +163,7 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 			// todo build ipld from graphFiles
 			BuildIpldGraph(ctx, graphFiles, GenGraphName(graphName, graphSliceCount, sliceTotal), parentPath, carDir, parallel, cb)
 			fmt.Printf("cumu-size: %d\n", cumuSize)
-			fmt.Printf(GenGraphName(graphName, graphSliceCount, sliceTotal))
+			fmt.Print(GenGraphName(graphName, graphSliceCount, sliceTotal))
 			fmt.Printf("=================\n")
 			cumuSize = 0
 			graphFiles = make([]Finfo, 0)
@@ -186,7 +189,7 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 			// todo build ipld from graphFiles
 			BuildIpldGraph(ctx, graphFiles, GenGraphName(graphName, graphSliceCount, sliceTotal), parentPath, carDir, parallel, cb)
 			fmt.Printf("cumu-size: %d\n", cumuSize+firstCut)
-			fmt.Printf(GenGraphName(graphName, graphSliceCount, sliceTotal))
+			fmt.Print(GenGraphName(graphName, graphSliceCount, sliceTotal))
 			fmt.Printf("=================\n")
 			cumuSize = 0
 			graphFiles = make([]Finfo, 0)
@@ -212,22 +215,60 @@ func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir,
 					// todo build ipld from graphFiles
 					BuildIpldGraph(ctx, graphFiles, GenGraphName(graphName, graphSliceCount, sliceTotal), parentPath, carDir, parallel, cb)
 					fmt.Printf("cumu-size: %d\n", sliceSize)
-					fmt.Printf(GenGraphName(graphName, graphSliceCount, sliceTotal))
+					fmt.Print(GenGraphName(graphName, graphSliceCount, sliceTotal))
 					fmt.Printf("=================\n")
 					cumuSize = 0
 					graphFiles = make([]Finfo, 0)
 					graphSliceCount++
 				}
 			}
-
 		}
 	}
 	if cumuSize > 0 {
+		if len(padding) > 0 && padding[0] {
+			log.Info("generate random padding file size :", sliceSize-cumuSize)
+			// generate padding file
+			path := targetPath
+			if finfo, err := os.Stat(targetPath); err == nil && !finfo.IsDir() {
+				index := strings.LastIndex(path, "/")
+				path = path[:index]
+			}
+			if f, err := generateRandomPaddingFile(path, sliceSize-cumuSize); err != nil {
+				log.Error("generate random padding file failed :", err)
+			} else {
+				cumuSize = sliceSize
+				graphFiles = append(graphFiles, *f)
+				defer os.Remove(f.Path) // remove temp file after car builded
+			}
+		}
+
 		// todo build ipld from graphFiles
 		BuildIpldGraph(ctx, graphFiles, GenGraphName(graphName, graphSliceCount, sliceTotal), parentPath, carDir, parallel, cb)
 		fmt.Printf("cumu-size: %d\n", cumuSize)
-		fmt.Printf(GenGraphName(graphName, graphSliceCount, sliceTotal))
+		fmt.Print(GenGraphName(graphName, graphSliceCount, sliceTotal))
 		fmt.Printf("=================\n")
 	}
 	return nil
+}
+
+const carPaddingFileName = "___car___.placeholder"
+
+func generateRandomPaddingFile(path string, size int64) (f *Finfo, err error) {
+	filePath := path + "/" + carPaddingFileName
+	cmd := exec.Command("dd", "if=/dev/random", "of="+filePath, fmt.Sprintf("bs=%d", size), "count=1")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Error(string(out))
+		return
+	}
+	finfo, err := os.Stat(filePath)
+	if err != nil {
+		log.Error(err)
+		return
+	}
+	return &Finfo{
+		Path: filePath,
+		Name: finfo.Name(),
+		Info: finfo,
+	}, nil
 }
