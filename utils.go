@@ -1,7 +1,9 @@
 package graphsplit
 
 import (
+	"bufio"
 	"context"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -524,4 +526,30 @@ type PieceInfo struct {
 type Manifest struct {
 	PayloadCid string `csv:"payload_cid"`
 	Filename   string `csv:"filename"`
+}
+
+func MD5sum(filename string) (string, error) {
+	if info, err := os.Stat(filename); err != nil || info.IsDir() {
+		return "", err
+	}
+
+	file, err := os.Open(filename)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	reader := bufio.NewReader(file)
+	buf := make([]byte, 65535)
+	hash := md5.New()
+	for {
+		switch n, err := reader.Read(buf); err {
+		case nil:
+			hash.Write(buf[:n])
+		case io.EOF:
+			return fmt.Sprintf("%x", hash.Sum(nil)), nil
+		default:
+			return "", err
+		}
+	}
 }

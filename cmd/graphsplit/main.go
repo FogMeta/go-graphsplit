@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/filedrive-team/go-graphsplit"
 	"github.com/filedrive-team/go-graphsplit/dataset"
@@ -91,6 +90,16 @@ var chunkCmd = &cli.Command{
 			Value: false,
 			Usage: "add padding to carfile in order to convert it's size to slice-size",
 		},
+		&cli.BoolFlag{
+			Name:  "car-json",
+			Value: false,
+			Usage: "generate car file desc in json format",
+		},
+		&cli.BoolFlag{
+			Name:  "car-md5",
+			Value: false,
+			Usage: "calculate car file md5",
+		},
 	},
 	Action: func(c *cli.Context) error {
 		ctx := context.Background()
@@ -117,7 +126,11 @@ var chunkCmd = &cli.Command{
 		}
 		var cb graphsplit.GraphBuildCallback
 		if c.Bool("calc-commp") {
-			cb = graphsplit.CommPCallback(carDir, c.Bool("rename"), c.Bool("add-padding"))
+			if c.Bool("car-json") {
+				cb = graphsplit.CommPCallbackWithCarDesc(carDir, c.Bool("rename"), c.Bool("add-padding"), graphsplit.NewCarDesc(c.Bool("car-md5"), parentPath, targetsPath...))
+			} else {
+				cb = graphsplit.CommPCallback(carDir, c.Bool("rename"), c.Bool("add-padding"))
+			}
 		} else if c.Bool("save-manifest") {
 			cb = graphsplit.CSVCallback(carDir)
 		} else {
@@ -220,37 +233,4 @@ var importDatasetCmd = &cli.Command{
 
 		return dataset.Import(ctx, targetPath, c.String("dsmongo"))
 	},
-}
-
-func camelMatch(queries []string, pattern string) []bool {
-	res := make([]bool, len(queries))
-	if pattern == "" {
-		return res
-	}
-	start := 0
-	var patterns []string
-	for i := 0; i < len(pattern); i++ {
-		char := pattern[i]
-		if char >= 'A' && char <= 'Z' {
-			patterns = append(patterns, pattern[start:i+1])
-			start = i + 1
-		}
-	}
-	for i, query := range queries {
-		for _, pt := range patterns {
-			query = strings.Replace(query, pt, "", 1)
-		}
-		res[i] = containUpperWord(query)
-	}
-	return res
-}
-
-func containUpperWord(s string) bool {
-	for i := 0; i < len(s); i++ {
-		char := s[i]
-		if char >= 'A' && char <= 'Z' {
-			return true
-		}
-	}
-	return false
 }
