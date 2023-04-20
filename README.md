@@ -57,7 +57,14 @@ Splitting dataset:
 --rename=false \
 # parent-path: usually just be the same as /path/to/dataset, it's just a method to figure out relative path when building IPLD graph
 --parent-path=/path/to/dataset \
-/path/to/dataset
+# whether add padding file to car file if car file size is smaller than slice-size
+--car-padding=false \
+# whether write car file descriptions to json file after car file generated, only valid when '--calc-commp=true' 
+--car-json=false \
+# whether calculate car file md5, only valid when '--car-json=true'
+--car-md5=false \
+# support one or more target paths
+/path/to/dataset /path/to/dataset2
 ```
 Notes: A manifest.csv will created to save the mapping with graph slice name, the payload cid and slice inner structure. As following:
 ```sh
@@ -85,7 +92,9 @@ Restore files:
 ./graphsplit restore \
 --car-path=/path/to/car-path \
 --output-dir=/path/to/output-dir \
---parallel=2
+--parallel=2 \
+# car-padding: if true, padding file will be removed after file restored
+--car-padding=true
 ```
 
 PieceCID Calculation for a single car file:
