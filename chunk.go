@@ -144,10 +144,10 @@ func ErrCallback() GraphBuildCallback {
 func Chunk(ctx context.Context, sliceSize int64, parentPath, targetPath, carDir, graphName string, parallel int, cb GraphBuildCallback, padding ...bool) error {
 	if parentPath == "" {
 		parentPath = targetPath
-		if finfo, err := os.Stat(targetPath); err == nil && !finfo.IsDir() {
-			index := strings.LastIndex(targetPath, "/")
-			parentPath = targetPath[:index]
-		}
+	}
+	if info, err := os.Stat(targetPath); err == nil && !info.IsDir() {
+		index := strings.LastIndex(targetPath, "/")
+		parentPath = targetPath[:index]
 	}
 	return ChunkMulti(ctx, sliceSize, parentPath, []string{targetPath}, carDir, graphName, parallel, cb, padding...)
 }
@@ -286,7 +286,9 @@ const carPaddingFileName = "___car___.placeholder"
 
 func generateRandomPaddingFile(path string, size int64) (f *Finfo, err error) {
 	filePath := path + "/" + carPaddingFileName
-	cmd := exec.Command("dd", "if=/dev/random", "of="+filePath, fmt.Sprintf("bs=%d", size), "count=1")
+	count := size>>30 + 1
+	cmd := exec.Command("dd", "if=/dev/urandom", "of="+filePath, "bs=1G", fmt.Sprintf("count=%d", count))
+	log.Info(cmd.String())
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		log.Error(string(out))
